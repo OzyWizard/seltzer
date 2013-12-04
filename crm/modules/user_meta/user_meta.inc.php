@@ -244,7 +244,7 @@ function user_meta_data ($opts = array()) {
  * @return An array of modified structures.
  */
 function user_meta_data_alter ($type, $data = array(), $opts = array()) {
-    switch ($type) {
+    /* switch ($type) {
         case 'contact':
             // Get cids of all contacts passed into $data
             $cids = array();
@@ -270,6 +270,7 @@ function user_meta_data_alter ($type, $data = array(), $opts = array()) {
             }
             break;
     }
+    */
     return $data;
 }
 

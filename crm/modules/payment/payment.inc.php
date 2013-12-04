@@ -404,6 +404,12 @@ function payment_save ($payment) {
     $esc_method = mysql_real_escape_string($payment['method']);
     $esc_confirmation = mysql_real_escape_string($payment['confirmation']);
     $esc_notes = mysql_real_escape_string($payment['notes']);
+    
+    // allow the credit field to be zero ( typically when the debit field is used)
+    if ( $esc_credit == '' ) { $esc_debit = 0; }
+    // same, same.
+    if ( $esc_debit == '' ) { $esc_debit = 0; }
+    
     // Query database
     if (array_key_exists('pmtid', $payment) && !empty($payment['pmtid'])) {
         // Payment already exists, update
@@ -453,6 +459,8 @@ function payment_save ($payment) {
                 , '$esc_notes'
             )
         ";
+        
+        //print_r($sql);
         $res = mysql_query($sql);
         if (!$res) crm_error(mysql_error());
         $payment['pmtid'] = mysql_insert_id();
@@ -490,7 +498,7 @@ function payment_accounts ($opts = array()) {
     $cid_to_balance = array();
     // Get credits
     $sql = "
-        SELECT `credit`, `code`, SUM(`value`) AS `value` FROM `payment` WHERE `credit` <> 0
+        SELECT `credit`, `code`, SUM(`value`) AS `value` FROM `payment` WHERE `credit` <> 0 
     ";
     foreach ($opts as $key => $value) {
         switch ($key) {
@@ -504,14 +512,16 @@ function payment_accounts ($opts = array()) {
                         $sql .= " AND `credit` IN (" . join(',', $terms) . ") ";
                     }
                 } else {
-                    $sql .= " AND `credit`=" . mysql_real_escape_string($value) . " ";
+                    if (!empty($value)) {
+                        $sql .= " AND `credit`= " . mysql_real_escape_string($value) . " ";
+                    }
                 }
                 break;
         }
     }
     $sql .= " GROUP BY `credit`, `code` ";
     $res = mysql_query($sql);
-    if (!$res) crm_error(mysql_error());
+    if (!$res) crm_error($sql.mysql_error());
     $db_row = mysql_fetch_assoc($res);
     while ($db_row) {
         $cid = $db_row['credit'];
@@ -540,7 +550,9 @@ function payment_accounts ($opts = array()) {
                         $sql .= " AND `debit` IN (" . join(',', $terms) . ") ";
                     }
                 } else {
-                    $sql .= " AND `debit`=" . mysql_real_escape_string($value) . " ";
+                    if (!empty($value)) {
+                        $sql .= " AND `debit`=" . mysql_real_escape_string($value) . " ";
+                    }
                 }
                 break;
         }
@@ -561,6 +573,7 @@ function payment_accounts ($opts = array()) {
     }
     return $cid_to_balance;
 }
+
 
 /**
  * Return an array of cids matching the given filters.
@@ -775,7 +788,8 @@ function payment_history_table ($opts) {
  */
 function payment_accounts_table ($opts) {
     $export = (array_key_exists('export', $opts) && $opts['export']) ? true : false;
-    $cids = payment_contact_filter(array('balance_due'=>true));
+//    $cids = payment_contact_filter(array('balance_due'=>true)); // only show overdue ones
+    $cids = payment_contact_filter(array());   // or show all. ? 
     $balances = payment_accounts(array('cid'=>$cids));
     $table = array(
         'columns' => array(
@@ -1159,12 +1173,13 @@ function payment_page (&$page_data, $page_name, $options) {
             }
             break;
         case 'accounts':
-            page_set_title($page_data, 'Accounts');
+            page_set_title($page_data, 'Accounts ( overdue and in-credit ) ');
             if (user_access('payment_view')) {
                 $content = theme('table', 'payment_accounts', array('show_export'=>true));
                 page_add_content_top($page_data, $content);
             }
             break;
+
         case 'contact':
             if (user_id() == $_GET['cid'] || user_access('payment_view')) {
                 $content = theme('table', 'payment_history', array('cid' => $_GET['cid']));

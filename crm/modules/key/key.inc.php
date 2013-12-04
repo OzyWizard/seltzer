@@ -38,6 +38,7 @@ function key_permissions () {
         'key_view'
         , 'key_edit'
         , 'key_delete'
+        , 'key_add'
     );
 }
 
@@ -76,8 +77,8 @@ function key_install($old_revision = 0) {
             , '8' => 'webAdmin'
         );
         $default_perms = array(
-            'director' => array('key_view', 'key_edit', 'key_delete')
-            , 'webAdmin' => array('key_view', 'key_edit', 'key_delete')
+            'director' => array('key_add','key_view', 'key_edit', 'key_delete')
+            , 'webAdmin' => array('key_add','key_view', 'key_edit', 'key_delete')
         );
         foreach ($roles as $rid => $role) {
             $esc_rid = mysql_real_escape_string($rid);

@@ -1,4 +1,5 @@
 <?php
+date_default_timezone_set('Australia/Brisbane');
 
 /*
     Copyright 2009-2013 Edward L. Platt <ed@elplatt.com>
