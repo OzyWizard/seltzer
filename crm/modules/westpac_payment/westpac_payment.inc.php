@@ -683,7 +683,9 @@ function command_westpac_payment_import () {
         
         
         // magic to figure out which member made the payment....   ( match for a members nickname, or fullname, or if we must, by surname , any of these will do, if we get more than 1 possible match at any level, freak out and fail. 
-        // look for nicknake
+        $method = "westpac";
+        
+        // look for nickname
          $found = 0; 
          $matches = ''; 
          foreach ( $usernames as $cid => $n ) { 
@@ -691,7 +693,7 @@ function command_westpac_payment_import () {
             if ( preg_match("/$n/i",$Narrative) )  { $foundname = $cid; $found++; $matches .= "&".$n; } 
           } 
         if ( $found > 1 ) crm_error("Too many usernames matched this payment - failed, sorry. ( $matches)  ( $Narrative )  ".print_r($row,true)); 
-        
+        if ( $found == 1 ) { $method = "nickname_match"; } 
         
         // TODO look for fullname 
         //select firstName, lastName from contact 
@@ -700,13 +702,16 @@ function command_westpac_payment_import () {
                if ( preg_match("/$n/i",$Narrative) )  {  $foundname = $cid; $found++;  } 
              } 
             if ( $found > 1 ) crm_error("Too many \$fullnames1 matched this payment - failed, sorry. ".print_r($row,true)); 
-        } 
+        }
+        if ( $found == 1 ) { $method = "first_last_match"; } 
+        
         if ( $found == 0  ) { 
             foreach ( $fullnames2 as $cid => $n ) { 
                if ( preg_match("/$n/i",$Narrative) )  {  $foundname = $cid;  $found++;  } 
              } 
             if ( $found > 1 ) crm_error("Too many \$fullnames2 matched this payment - failed, sorry. ".print_r($row,true)); 
         }
+        if ( $found == 1 ) { $method = "last_first_match"; } 
                 
         // TODO look for surname 
         //select lastName from contact 
@@ -716,13 +721,15 @@ function command_westpac_payment_import () {
              } 
             if ( $found > 1 ) crm_error("Too many \$lastnames matched this payment - failed, sorry. ".print_r($row,true)); 
         }
+        if ( $found == 1 ) { $method = "lastname_only_match"; } 
+
         
         if ( $found == 0  ) {
-            //crm_error("No member matched this payment - failed, sorry.  ( $Narrative ) ".print_r($row,true) );
+            crm_error("No member matched this payment - failed, sorry.  ( $Narrative ) ".print_r($row,true) );
             $foundname = 0; 
         }
         if ( $foundname == "" ) {
-            //crm_error("No membername matched this payment - failed, sorry.  ( $Narrative ) ".print_r($row,true) );
+            crm_error("No membername matched this payment - failed, sorry.  ( $Narrative ) ".print_r($row,true) );
             $foundname = 0; 
         }
         
@@ -738,7 +745,7 @@ function command_westpac_payment_import () {
             , 'value' => $value['value']
             , 'credit_cid' =>  $foundname   // the user ID of the member to credit..! 
             , 'description' => $Narrative . ' westpac Payment'
-            , 'method' => 'westpac'
+            , 'method' => $method
             , 'confirmation' =>  $md5  // $row['Transaction ID']
             , 'notes' => $origfilename
             , 'westpac_email' => 'not implemented'
