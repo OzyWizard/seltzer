@@ -265,7 +265,7 @@ function theme_form_text ($field) {
     if (!empty($field['suggestion'])) {
         array_push($classes, 'autocomplete');
     }
-    if (array_key_exists('defaultClear', $field) && $field['defaultClear'] == True)
+    if (!empty($field['value']) && array_key_exists('defaultClear', $field) && $field['defaultClear'] == True)
     {
         array_push($classes, 'defaultClear');
     }
