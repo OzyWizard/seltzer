@@ -621,8 +621,9 @@ function user_meta_add_form ($cid) {
                         'type' => 'text',
                         'label' => 'MetaTag',
                         'name' => 'tagstr',
-                        'value' => '[please enter a meaningful metatag here]',
+                        'value' => '[Meaningful metatag here]',
                         'suggestion' => 'meta_tag',
+                        'defaultClear' => True,
                     ),
                     array(
                         'type' => 'text',
