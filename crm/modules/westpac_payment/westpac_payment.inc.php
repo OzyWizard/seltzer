@@ -899,7 +899,7 @@ function command_westpac_payment_import () {
            if ( $paymentInDollars == 65 ) $extramonths = 2; // OzyWizard error
            if ( $paymentInDollars == 80 ) $extramonths = 3; // OzyWizard error
            
-         }          
+         }           
          if ( $membership['plan']['name'] == 'Student' ) { 
            if ( $paymentInDollars == 215 ) $extramonths = 7; // JohnW weird error
            
