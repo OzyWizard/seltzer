@@ -262,6 +262,9 @@ function theme_form_text ($field) {
     if (!empty($field['autocomplete'])) {
         array_push($classes, 'autocomplete');
     }
+    if (!empty($field['suggestion'])) {
+        array_push($classes, 'suggestion');
+    }
     $output = '<fieldset class="form-row ' . $field['class'] . '">';
     if (!empty($field['label'])) {
         $output .= '<label>' . $field['label'] . '</label>';
