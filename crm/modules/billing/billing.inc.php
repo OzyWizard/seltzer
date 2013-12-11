@@ -131,15 +131,38 @@ function command_billing () {
         $filter['ends_after'] = $last_billed;
     }
     $membership_data = crm_get_data('member_membership', array('filter' => $filter));
+
     // Bill each membership
     foreach ($membership_data as $membership) {
+        
+       // if user/s OnHold, and don't bill them futher. this is done by adding an end-date to their membership of today!  
+       // the effect of this is to "expire their membership", and "not accrue pas the end of the month". 
+       if (  $membership['pid'] == 5  &&  empty($membership['end']) ) { 
+            member_membership_save( array( 'sid' => $membership['sid'],'cid' => $membership['cid'], 
+                                           'pid' => $membership['pid'], 'start' => $membership['start'], 
+                                           'end' => $today  ) );
+       } 
+
+
+       // also, don't bill user/s who have a "plan" of OnHold... 
+       // TODO don't hardcode 'OnHold' = plan id of 5.
+       if ( $membership['pid'] == 5 ) { 
+          continue;
+       } 
+        
+        
         if (!empty($membership['end']) && strtotime($membership['end']) < strtotime($today)) {
             // Bill until end of membership
             _billing_bill_membership($membership, $membership['end'], $last_billed);
-        } else {
+        } 
+        // members on an open-ended plan, with no end date, 
+        if ( empty($membership['end']) ) { 
             // Bill until today
             _billing_bill_membership($membership, $today, $last_billed);
-        }
+        } 
+ 
+
+        
     }
     // Set last billed date to today
     variable_set('billing_last_date', $today);

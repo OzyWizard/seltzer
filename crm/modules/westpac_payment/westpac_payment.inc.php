@@ -652,9 +652,24 @@ function command_westpac_payment_import () {
         // skip records that aren't deposits, as members can't do XFER or DEBIT
         if ( $row['Categories'] != 'DEP' ) continue; 
         
-                
+        // also skip INTEREST DEPosits. 
+        if ( $row['Narrative'] == 'INTEREST'  ) continue; 
+        if ( $row['Narrative'] == 'interest'  ) continue; 
+        
+        // also skip unidentified ones 
+        if ( $row['Narrative'] == '??' ) continue; 
+        
+        // seans payments are not all membership, and he pays in weird amounts, so ignore them all
+        if ( preg_match("/SeanMcGrade/i",$row['Narrative']) )   continue;  
+        
+        // robots!  payments are not membership, and they pays in weird amounts, so ignore them all
+        if ( preg_match("/qldrs/i",$row['Narrative']) )   continue;  
+        
+        
+        
+        $as_string = $row['Bank Account'].", ".$row['Date'].", ".$row['Narrative'].", ".$row['Debit Amount'].", ".$row['Credit Amount'].", ".$row['Categories'].", ".$row['Serial'];
         // turn it into a unique reference for later possible cross-checcking.... 
-        $md5 = md5($row['Bank Account'].", ".$row['Date'].", ".$row['Narrative'].", ".$row['Debit Amount'].", ".$row['Credit Amount'].", ".$row['Categories'].", ".$row['Serial']);
+        $md5 = md5($as_string);
 
         
         // TODO - Skip transactions that have already been imported, paypal did it like this: 
@@ -666,8 +681,14 @@ function command_westpac_payment_import () {
             continue;
         }
         
-        // Parse value
+        
+        // Parse value, into $value = cents.
         $value = payment_parse_currency($row['Credit Amount']);
+        $paymentInCents = $value['value'];
+        
+        if ( $paymentInCents == 5000 ) continue ; // nathank hack
+        if ( $paymentInCents == 1000 ) continue ; // Daniel Fielding hack
+        
         
         // strip common non-name crud from Narative so usernames like 'Si' and 'IT' and "Lin" don't accidentially match
         $Narrative = preg_replace('/DEPOSIT /i','',$row['Narrative']); 
@@ -683,51 +704,71 @@ function command_westpac_payment_import () {
         
         
         // magic to figure out which member made the payment....   ( match for a members nickname, or fullname, or if we must, by surname , any of these will do, if we get more than 1 possible match at any level, freak out and fail. 
-        // look for nicknake
-         $found = 0; 
-         $matches = ''; 
-         foreach ( $usernames as $cid => $n ) { 
-             
-            if ( preg_match("/$n/i",$Narrative) )  { $foundname = $cid; $found++; $matches .= "&".$n; } 
-          } 
-        if ( $found > 1 ) crm_error("Too many usernames matched this payment - failed, sorry. ( $matches)  ( $Narrative )  ".print_r($row,true)); 
+        $method = "westpac";
         
+        // look for nickname
+        $found = 0; 
+        $matches = ''; 
+        foreach ( $usernames as $cid => $n ) { 
+            if ( preg_match("/$n/i",$Narrative) )  { $foundname = $cid; $found++; $matches .= "&".$n; } 
+        }  
+        if ( $found > 1 ) 
+            crm_error("Too many usernames matched this payment - failed, sorry. ( $matches)  ( $Narrative )  ".print_r($row,true)); 
+        if ( $found == 1 && $method == "westpac") { $method = "nickname_match"; } 
         
         // TODO look for fullname 
         //select firstName, lastName from contact 
         if ( $found == 0  ) { 
             foreach ( $fullnames1 as $cid => $n ) { 
                if ( preg_match("/$n/i",$Narrative) )  {  $foundname = $cid; $found++;  } 
-             } 
+            } 
             if ( $found > 1 ) crm_error("Too many \$fullnames1 matched this payment - failed, sorry. ".print_r($row,true)); 
-        } 
+        }
+        if ( $found == 1 && $method == "westpac") { $method = "first_last_match"; } 
+        
         if ( $found == 0  ) { 
             foreach ( $fullnames2 as $cid => $n ) { 
                if ( preg_match("/$n/i",$Narrative) )  {  $foundname = $cid;  $found++;  } 
-             } 
+            } 
             if ( $found > 1 ) crm_error("Too many \$fullnames2 matched this payment - failed, sorry. ".print_r($row,true)); 
         }
+        if ( $found == 1 && $method == "westpac") { $method = "last_first_match"; } 
                 
         // TODO look for surname 
         //select lastName from contact 
         if ( $found == 0  ) { 
             foreach ( $lastnames as $cid => $n ) { 
                if ( preg_match("/$n/i",$Narrative) )  { $foundname = $cid;  $found++;  } 
-             } 
+            } 
             if ( $found > 1 ) crm_error("Too many \$lastnames matched this payment - failed, sorry. ".print_r($row,true)); 
         }
+        if ( $found == 1 && $method == "westpac") { $method = "lastname_only_match"; } 
+
         
         if ( $found == 0  ) {
-            //crm_error("No member matched this payment - failed, sorry.  ( $Narrative ) ".print_r($row,true) );
+            crm_error("No member matched this payment - failed, sorry.  ( $Narrative ) ".print_r($row,true) );
             $foundname = 0; 
         }
         if ( $foundname == "" ) {
-            //crm_error("No membername matched this payment - failed, sorry.  ( $Narrative ) ".print_r($row,true) );
+            crm_error("No membername matched this payment - failed, sorry.  ( $Narrative ) ".print_r($row,true) );
             $foundname = 0; 
         }
-        
+
+        // barf if 'Date' field isn't how it should be:   ( which is dd/mm/yy format to start with ) 
+        if ( ! preg_match('/^(\d\d|\d)\/\d\d\/\d\d$/' , $row['Date'])) {
+            return crm_error("Date field in csv is not formatted as dd/mm/yy, sorry, chickening out.".print_r($row,true) );
+        }       
         $date_data = split("/",$row['Date']);   // dd/mm/yy format to start with 
-        $day=$date_data[0]; $month=$date_data[1]; $year=$date_data[2]; 
+        $day=$date_data[0]; $month=$date_data[1]; $year=$date_data[2];  if ( $year < 100 ) { $year = "20".$year; }
+        if ( $year < 2009 || $year > 2023 ) {
+            return crm_error("Date field  ( year: $year)  in csv is not in correct range 09-23, sorry, chickening out.".print_r($row,true) );
+        } 
+        
+        // skip all weird deposits from lemming and other/s as non-membership payments 
+        // ( just deposits of group moneys ):
+        // by putting this BEFORE the payment_save(), we don't even note the payment in seltzer AT ALL. 
+        if ( $paymentInCents%100 != 0  ) continue; 
+         
         
       //  print_r("$day  - $month - $year \n");
             
@@ -735,12 +776,12 @@ function command_westpac_payment_import () {
         $payment = array(
             'date' => date('Y-m-d', mktime(0, 0, 0, $month, $day, $year)) //yyyy-mm-dd format to end with
             , 'code' => $value['code']
-            , 'value' => $value['value']
+            , 'value' => $paymentInCents
             , 'credit_cid' =>  $foundname   // the user ID of the member to credit..! 
             , 'description' => $Narrative . ' westpac Payment'
-            , 'method' => 'westpac'
+            , 'method' => $method
             , 'confirmation' =>  $md5  // $row['Transaction ID']
-            , 'notes' => $origfilename
+            , 'notes' => $origfilename.$as_string
             , 'westpac_email' => 'not implemented'
         );
         // Check if the westpac email is linked to a contact
@@ -753,6 +794,174 @@ function command_westpac_payment_import () {
         //print_r($payment);
         $payment = payment_save($payment);
         $count++;
+        
+        
+        // OPTIONAL:  
+        // for each user that makes a payment, identify when their membership was previously valid till ( if they have an end date ) 
+        // and add in a new membership "plan" with start/end date/s to extend the previous one.  
+        $memberships = member_membership_data( array( 'cid' =>  $foundname ) ) ;   
+
+        
+       // find membership with latest "end" date...
+        $latest = 0; 
+        foreach ( $memberships as $n => $m ) { 
+           $datetime1 = date_create($memberships[$latest]['end']);
+           $datetime2 = date_create($m['end']);
+           $interval = date_diff($datetime1, $datetime2);
+           $i = $interval->format('%r%a');  // -2  or  3   ( it's the number of days separating these dates ) 
+           if ( $i > 0 ) $latest = $n; 
+        } 
+        //// latest/most recent membership 
+        $membership = $memberships[$latest];
+
+        
+        
+        // test via Joel: 
+       // if ( $membership['cid'] == 111 ) print_r($memberships); 
+        
+        if ( ! empty($membership['end']) ) {  // person's with "closed off" date period/s only get billed for period/s they pay for. 
+        
+        // take the end date for the last time this person was a pid member, and also the date of the payment itself... 
+        // and select the *latest* of these date/s as the date to make this payment period start/re-start from.
+        // this is the most "generouus" option, as if a user pays a few days late, we graciously ignore those days.
+           $datetime1 = date_create($membership['end']);   // last membership expiry date
+           $paymentdate = date('Y-m-d', mktime(0, 0, 0, $month, $day, $year)); // payment date as yyyy-mm-dd format
+           $datetime2 = date_create($paymentdate); // payment date
+           $interval = date_diff($datetime1, $datetime2);
+           $i = $interval->format('%r%a');  // -2  or  3   ( it's the number of days separating these dates ) 
+        if ( $i > 0 ) { 
+            // use datetime2
+            $newstart = $paymentdate;
+        } else { 
+           // use datetime1
+           $newstart = $membership['end'];   
+        }
+            
+         // INSERT a new period with the start date as the most relevant previous end date or payment date
+        $membership['start'] = $newstart;  
+        $m = member_membership_save( array(  'cid' => $membership['cid'], 
+                                                          'pid' => $membership['pid'], 
+                                                          'start' => $membership['start'] ) );
+                                                          
+        $membership['sid'] = $m['sid']; // copy unique id to the membership block without dropping the plan data! 
+        $membership['start'] = $m['start'];
+                                                          
+        $paymentInDollars = floor($paymentInCents/100); // drop the actual cents.
+ 
+        $extramonths = 0; // don't put partial months here, maybe change it to days in the future? 
+        
+         // determine the last plan they were on, and charge them at that rate for the next period...  ( also see ['plan']['pid'] for the plan id. )
+         // ( this only works inso much as they make a payment that's compatible with the previous plan. if the payment changes, so possibly does the new plan  
+         
+         // 30 a month, students and unemployed:                                          
+         if (  $paymentInDollars%30 == 0  && ( $membership['plan']['name'] == 'Unemployed' || $membership['plan']['name'] == 'Student' ) ) { 
+            $extramonths = $paymentInDollars/30;
+         } 
+         // 60 a month  
+         if ( $extramonths == 0 && $paymentInDollars%60 == 0  && ( $membership['plan']['name'] == 'Working' )  ) { 
+            $extramonths = $paymentInDollars/60;
+         }
+        // essentially 60 a month, near enough
+         if ( $extramonths == 0 && $paymentInDollars >= 58  && $paymentInDollars <= 61 && $membership['plan']['name'] == 'Working'  ) { 
+            $extramonths = 1;
+         } 
+         // 20 is 1/3 of a month
+         if ( $extramonths == 0 && ( $paymentInDollars == 20 ) && $membership['plan']['name'] == 'Working'  ) { 
+            $extramonths = 1; // round it to 1 as we can't do 1/3 of a month? 
+         } 
+         // some multiple of 55 is OK, so long as it's 3 months or greater: 
+         // plan can be  'Full-Prepaid', or 'Working', we'll assume the latter.? 
+         if ( $extramonths == 0 && $paymentInDollars >= 55*3 &&  $paymentInDollars%55 == 0 ) { 
+            $extramonths = $paymentInDollars/55;
+         } 
+         
+         // if a person is onhold, we can't quite as easily predict if they are a fulltimer or a student, lets make educated guess:
+         if ( $membership['plan']['name'] == 'OnHold' ) { 
+            if ( $paymentInDollars == 30 ) $extramonths = 1; // student
+            if ( $paymentInDollars == 90 ) $extramonths = 3; // student
+            if ( $paymentInDollars == 180 ) $extramonths = 6; // student @ 6 months is more liekly than worker at 3 months
+            if ( $paymentInDollars == 60 ) $extramonths = 1; //fulltime
+            if ( $paymentInDollars == 120 ) $extramonths = 2; //fulltime
+            if ( $paymentInDollars == 240 ) $extramonths = 4; //fulltime, might be 8 months at student rate, but unlikely, yea? 
+            if ( $paymentInDollars == 165 ) $extramonths = 3; //fulltime
+            if ( $paymentInDollars == 165+55 ) $extramonths = 4; //fulltime
+            if ( $paymentInDollars == 165+110 ) $extramonths = 5; //fulltime
+            if ( $paymentInDollars == 165+165 ) $extramonths = 6; //fulltime   
+            if ( $paymentInDollars == 165+165+165 ) $extramonths = 9; //fulltime   495
+         } 
+         
+         if ( $membership['plan']['name'] == 'Woofer' ) { 
+           if ( $paymentInDollars == 30 ) $extramonths = 1; // EricReader error
+           if ( $paymentInDollars == 90 ) $extramonths = 3; // EricReader error
+           
+         }          
+         if ( $membership['plan']['name'] == 'Unemployed' ) { 
+           if ( $paymentInDollars == 65 ) $extramonths = 2; // OzyWizard error
+           if ( $paymentInDollars == 80 ) $extramonths = 3; // OzyWizard error
+           
+         }          
+         if ( $membership['plan']['name'] == 'Student' ) { 
+           if ( $paymentInDollars == 215 ) $extramonths = 7; // JohnW weird error
+           
+         }          
+         if ( $membership['plan']['name'] == 'Working' ) { 
+           if ( $paymentInDollars == 33 ) $extramonths = 1; // quadlex error
+           if ( $paymentInDollars == 40 ) $extramonths = 1; // tjhowse error
+           if ( $paymentInDollars == 190 ) $extramonths = 3; // spoz error
+           if ( $paymentInDollars == 104 ) $extramonths = 1; // Denominator ( assuming room rent for the rest? ) error
+           if ( $paymentInDollars == 155 ) $extramonths = 3; // quadlex rounding error
+           if ( $paymentInDollars == 160 ) $extramonths = 3; // hovo rounding error
+           if ( $paymentInDollars == 125 ) $extramonths = 2; // hovo rounding error
+           if ( $paymentInDollars == 100 ) $extramonths = 1; // hovo rounding error
+
+           if ( $paymentInDollars == 5 ) $extramonths = 1; // devians weird error
+
+           if ( $paymentInDollars == 30 ) $extramonths = 1; // loki weird error
+           
+         }          
+         
+         
+         
+         // still zero, barf on a weird payment we don't understand 
+         // (or we could just let them thru, as things like deposits from the drinks machine. 
+         if ( $extramonths == 0 ) { 
+            return crm_error("extramonths is zero for membership ( $Narrative) . weird ass payment: $paymentInDollars. chickening out.".print_r($memberships[0],true));
+         } 
+          
+        //  $membership['plan']['price'] 
+         
+        // calculate new "end" date for  this
+        $start = date_create($membership['start']);
+        date_add($start, date_interval_create_from_date_string($extramonths.' month'));
+        $newend =  date_format($start, 'Y-m-d');
+        
+
+       // debug just joel/fatal
+       // if ( $foundname == 111 ) message_register("start: ".$membership['start']."  end: $newend extras?:   $extramonths <br>/n"); 
+         
+        $membership['end'] = $newend;
+        
+        //ok, one final thing to check.... if the payment period puts us "in hte future", then 
+        // the user is obviously still "current", so we don't close-off their membership period. 
+           $datetime1 = date_create($membership['end']);   // last membership expiry date
+           $datetime2 = new DateTime("now");
+           $interval = date_diff($datetime1, $datetime2);
+           $i = $interval->format('%r%a');  // -2  or  3   ( it's the number of days separating these dates ) 
+          
+        
+          // if membership end is greater than "now".                                           
+          if ( $i > 0 ) {                                                   
+             // UPDATE with the end date calculated based on the $$                               
+             member_membership_save( array( 'sid' => $membership['sid'],'cid' => $membership['cid'], 
+                                                'pid' => $membership['pid'], 'start' => $membership['start'], 
+                                                'end' => $membership['end']  ) );
+          } 
+                                           
+        } 
+
+         
+        
+        
     }
     message_register("Successfully imported $count payment(s)");
     return crm_url('payments');

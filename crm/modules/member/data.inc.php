@@ -342,7 +342,7 @@ function member_membership_data ($opts) {
         }
     }
     $sql .= "
-        ORDER BY `start` DESC";
+        ORDER BY `start`, sid DESC"; // if the date/s are the same, give me the latest first! 
     $res = mysql_query($sql);
     if (!$res) crm_error(mysql_error());
     // Store data

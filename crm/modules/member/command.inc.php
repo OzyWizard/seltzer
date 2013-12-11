@@ -402,6 +402,9 @@ function command_member_import () {
             $row[$new_key] = $value;
         }
         
+        // BUZZ TODO - check if requested user/contact already exists, and then either deny that row, or update it
+        
+        
         // Add contact
         $firstName = mysql_real_escape_string($row['firstname']);
         $middleName = mysql_real_escape_string($row['middlename']);
@@ -511,6 +514,30 @@ function command_member_import () {
         ";
         $res = mysql_query($sql);
         if (!$res) crm_error(mysql_error());
+        
+        
+        $sid = mysql_insert_id();
+        
+        // optionally, can limit it to those "OnHold" user/s..? ,  
+        // then set the end date of their period to the same day! : 
+        // this is a bit of a hack that allows us to have user/s with "closed off periods" import 
+        // and calulate the date/s easily ( by adding months to the end date ) 
+        // BUZZ TODO HACK.   is there a less hacky way 
+        // 
+        // current "open" user/s are those that have made a payment since July 1 2013 ( ie last ~12months ) 
+        // OR are paid-up in advance with their latest payment/s
+        // OR are not "OnHold". 
+           $datetime1 = date_create('2013-12-01');
+           $datetime2 = date_create($esc_start);
+           $interval = date_diff($datetime1, $datetime2);
+           $i = $interval->format('%r%a');  // -2  or  3   ( it's the number of days separating these dates ) 
+           
+      
+        if (  $esc_pid == 5  || $i <= 0 ) { 
+            member_membership_save( array( 'sid' => $sid,'cid' => $esc_cid, 
+                                           'pid' => $esc_pid, 'start' => $esc_start, 
+                                           'end' => $esc_start  ) );
+        }
         
         if (function_exists('paypal_payment_revision')) {
             if (!empty($email)) {
