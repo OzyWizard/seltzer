@@ -395,12 +395,21 @@ function command_member_import () {
     
     foreach ($data as $row) {
         
-        // Convert row keys to lowercase and remove spaces
+        $usertags = array(); 
+        
+        // Convert row keys to lowercase and remove spaces ( and identify UserMeta style columns ) 
         foreach ($row as $key => $value) {
             $new_key = str_replace(' ', '', strtolower($key));
             unset($row[$key]);
             $row[$new_key] = $value;
+            
+            //UserMeta prefixed keys? 
+            if ( preg_match('/^usermeta(.*)/',$new_key) ) { 
+                $tmpkey = preg_replace('/^UserMeta/i','',$key); // strip the prefix, keep the titlecase/s for the columns. 
+                if ($value == 1 || $value == '1' ) $usertags[$tmpkey] = 1;  // everything else (like empty fields) is considered zero.
+            } 
         }
+        
         
         // BUZZ TODO - check if requested user/contact already exists, and then either deny that row, or update it
         
@@ -413,6 +422,11 @@ function command_member_import () {
         $phone = mysql_real_escape_string($row['phone']);
         $emergencyName = mysql_real_escape_string($row['emergencyname']);
         $emergencyPhone = mysql_real_escape_string($row['emergencyphone']);
+        
+        $keyserial = mysql_real_escape_string($row['keyserial']);
+        $keyissuedate = mysql_real_escape_string(defined($row['keyissuedate'])?$row['keyissuedate']:$row['startdate']); // ( same as Start Date ) ?
+        $keyslot = mysql_real_escape_string(defined($row['keyslot'])?$row['keyslot']:'0'); // assume zero if not given.
+              
         $sql = "
             INSERT INTO `contact`
             (`firstName`,`middleName`,`lastName`,`email`,`phone`,`emergencyName`,`emergencyPhone`)
@@ -515,8 +529,22 @@ function command_member_import () {
         $res = mysql_query($sql);
         if (!$res) crm_error(mysql_error());
         
-        
         $sid = mysql_insert_id();
+        
+        
+        // OPTIONAL: add UserMeta Tags, if they exist:  ( we get the Start date for the tag from the 'Start Date' field, as a guess ) 
+        foreach ( $usertags as $t => $v ) { 
+            $user_meta = array('cid' =>$cid , 'tagstr' => $t, 'start' => $esc_start, 'end' => '');
+            user_meta_save ($user_meta);
+        }
+        
+        // OPTIONAL: add Key number, date, and slot, if these server given in the CSV: 
+        
+        if ( ! empty($keyserial) ) { 
+            $keydata = array('cid' =>$cid , 'serial' =>$keyserial , 'slot' =>$keyslot , 'start' =>$keyissuedate , 'end' =>'' );
+            key_save($keydata); 
+        }
+        
         
         // optionally, can limit it to those "OnHold" user/s..? ,  
         // then set the end date of their period to the same day! : 

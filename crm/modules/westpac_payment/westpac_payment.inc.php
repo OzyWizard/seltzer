@@ -911,7 +911,7 @@ function command_westpac_payment_import () {
            if ( $paymentInDollars == 104 ) $extramonths = 1; // Denominator ( assuming room rent for the rest? ) error
            if ( $paymentInDollars == 155 ) $extramonths = 3; // quadlex rounding error
            if ( $paymentInDollars == 160 ) $extramonths = 3; // hovo rounding error
-           if ( $paymentInDollars == 125 ) $extramonths = 2; // hovo rounding error
+           if ( $paymentInDollars == 125 ) $extramonths = 2; // loki? rounding error
            if ( $paymentInDollars == 100 ) $extramonths = 1; // hovo rounding error
 
            if ( $paymentInDollars == 5 ) $extramonths = 1; // devians weird error

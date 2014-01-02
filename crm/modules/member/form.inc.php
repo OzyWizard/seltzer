@@ -570,7 +570,7 @@ function member_import_form () {
         , 'fields' => array(
             array(
                 'type' => 'message'
-                , 'value' => '<p>To import members, upload a csv.  The csv should have a header row with the following fields:</p><ul><li>First Name</li><li>Middle Name</li><li>Last Name</li><li>Email</li><li>Phone</li><li>Emergency Name</li><li>Emergency Phone</li><li>Username</li><li>Plan</li><li>Start Date</li></ul>'
+                , 'value' => '<p>To import members, upload a csv.  The csv should have a header row with the following compulsory fields:</p><ul><li>First Name</li><li>Middle Name</li><li>Last Name</li><li>Email</li><li>Phone</li><li>Emergency Name</li><li>Emergency Phone</li><li>Username</li><li>Plan</li><li>Start Date ( must be in YYYY-MM-DD format ) </li></ul> And may optionally have any of these fields *after* the compulsory ones, in any order: <ul><li>Key Serial<li>Key Issue Date ( needs Key Serial to exist, assumed to be same as Start Date field if not given)<li>Key Slot ( needs Key Serial to exist, ammumed zero if absent)<li>UserMetaXXXXX ( XXXXX will be the name of the Tag) <li>UserMetaAAAAA .... you can have an many unique UserMetaQQQQ colums as you want</ul>'
             )
             , array(
                 'type' => 'file'
