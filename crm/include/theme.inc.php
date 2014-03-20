@@ -41,8 +41,10 @@ function theme_footer() {
 /**
  * @return The themed html string for logo.
 */
+/** function theme_logo () {
+    return '<div class="logo"><img alt="i3 Detroit" src="' . path_to_theme() . '/images/logo.png"/></div>'; */
 function theme_logo () {
-    return '<div class="logo"><img alt="i3 Detroit" src="' . path_to_theme() . '/images/logo.png"/></div>';
+    return '<div class="logo"><img alt="HsBne" src="' . path_to_theme() . '/images/hlogo.png"/></div>';
 }
 
 /**
